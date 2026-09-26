@@ -42,11 +42,11 @@ function emulateHitTest(painted: () => Element[]): () => void {
     Object.defineProperty(document, "elementsFromPoint", { configurable: true, value: original });
 }
 
-// The selectors getCandidatesAtPoint(10, 10) returns while the hit test yields `stack`.
-function candidatesUnder(stack: () => Element[]): string[] {
+// One field of each candidate getCandidatesAtPoint(10, 10) returns while the hit test yields `stack`.
+function candidatesUnder(stack: () => Element[], field = "selector"): string[] {
   const restore = emulateHitTest(stack);
   try {
-    return (window as any).__HF_PICKER_API.getCandidatesAtPoint(10, 10).map((c: any) => c.selector);
+    return (window as any).__HF_PICKER_API.getCandidatesAtPoint(10, 10).map((c: any) => c[field]);
   } finally {
     restore();
   }
@@ -137,6 +137,21 @@ describe("createPickerModule", () => {
       expect(api.isActive()).toBe(true);
       picker.disablePickMode();
       expect(api.isActive()).toBe(false);
+    });
+
+    it("labels a heading by its text, and by its role only when it has none", () => {
+      const picker = createPickerModule({ postMessage: createMockPostMessage() });
+      picker.installPickerApi();
+      const title = document.createElement("h2");
+      title.textContent = "  Launch \n day  ";
+      const empty = document.createElement("h4");
+      const long = document.createElement("h1");
+      long.textContent = `${"x".repeat(54)}😀 and more`;
+      document.body.append(title, empty, long);
+
+      expect(candidatesUnder(() => [title], "label")).toEqual(["Launch day"]);
+      expect(candidatesUnder(() => [empty], "label")).toEqual(["Heading"]);
+      expect(candidatesUnder(() => [long], "label")).toEqual([`${"x".repeat(54)}😀…`]);
     });
 
     it("getCandidatesAtPoint returns empty for invalid coords", () => {
